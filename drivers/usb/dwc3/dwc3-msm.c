@@ -275,6 +275,11 @@ struct dwc3_msm {
 	struct pm_qos_request   pm_qos_req_dma;
 	struct delayed_work     perf_vote_work;
 	enum dwc3_perf_mode	curr_mode;
+
+	/* wall charger in which D+/D- is disconnected
+		would be recognized as usb cable, 1/5 */
+	struct delayed_work	invalid_chg_work;
+	/* end */
 };
 
 #define USB_HSPHY_3P3_VOL_MIN		3050000 /* uV */
@@ -296,6 +301,40 @@ struct dwc3_msm {
 
 static void dwc3_pwr_event_handler(struct dwc3_msm *mdwc);
 static int dwc3_msm_gadget_vbus_draw(struct dwc3_msm *mdwc, unsigned mA);
+/* wall charger in which D+/D- is disconnected
+	would be recognized as an usb cable, 2/5 */
+static int skip_invalid_chg_work = 0;
+#define DWC3_IDEV_CHG_INVALID	501
+
+static void dwc3_invalid_chg_work(struct work_struct *w)
+{
+	struct dwc3_msm *mdwc = container_of(w, struct dwc3_msm, invalid_chg_work.work);
+
+	if (skip_invalid_chg_work) {
+		dev_info(mdwc->dev, "do skip_invalid_chg_work\n");
+		skip_invalid_chg_work = 0;
+		return;
+	}
+
+	dev_info(mdwc->dev, "usb schedule %s\n", __func__);
+	dwc3_msm_gadget_vbus_draw(mdwc, DWC3_IDEV_CHG_INVALID);
+}
+/*end*/
+
+/*
+ * for notify otg from gadget, 8/8
+ * event 1:  skip invalid_chg work, as usb has already been configured
+ * event 2:  ...
+ */
+static int dwc3_extra_event_from_gadget(struct dwc3_msm *mdwc, unsigned event)
+{
+	if (event == 1) {
+		dev_info(mdwc->dev, "prepare skip_invalid_chg_work\n");
+		skip_invalid_chg_work = 1;
+	}
+	return 0;
+}
+/* end */
 
 /**
  *
@@ -1876,6 +1915,12 @@ static void dwc3_msm_notify_event(struct dwc3 *dwc, unsigned event,
 	case DWC3_CONTROLLER_NOTIFY_DISABLE_UPDXFER:
 		dwc3_msm_dbm_disable_updxfer(dwc, value);
 		break;
+	/* for notify otg from gadget, 7/8 */
+	case DWC3_CONTROLLER_GADGET_EXTRA_EVENT:
+		dev_dbg(mdwc->dev, "DWC3_CONTROLLER_GADGET_EXTRA_EVENT received\n");
+		dwc3_extra_event_from_gadget(mdwc, dwc->extra_event);
+		break;
+	/* end */
 	default:
 		dev_dbg(mdwc->dev, "unknown dwc3 event\n");
 		break;
@@ -2959,6 +3004,10 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&mdwc->resume_work, dwc3_resume_work);
 	INIT_WORK(&mdwc->restart_usb_work, dwc3_restart_usb_work);
 	INIT_DELAYED_WORK(&mdwc->sm_work, dwc3_msm_otg_sm_work);
+	/* wall charger in which D+/D- is disconnected
+		would be recognized as usb cable, 5/5 */
+	INIT_DELAYED_WORK(&mdwc->invalid_chg_work, dwc3_invalid_chg_work);
+	/* end */
 	INIT_DELAYED_WORK(&mdwc->perf_vote_work, dwc3_msm_otg_perf_vote_work);
 
 	mdwc->sm_usb_wq = create_freezable_workqueue("k_sm_usb");
@@ -4003,6 +4052,10 @@ static void dwc3_msm_otg_sm_work(struct work_struct *w)
 					if (mdwc->chg_type != DWC3_SDP_CHARGER)
 						break;
 				}
+				/* wall charger in which D+/D- is disconnected
+				would be recognized as an usb cable, 4.1/5 */
+				schedule_delayed_work(&mdwc->invalid_chg_work, 5*HZ);
+				/* end */
 				dwc3_otg_start_peripheral(mdwc, 1);
 				mdwc->otg_state = OTG_STATE_B_PERIPHERAL;
 				dbg_event(0xFF, "Undef SDP",
@@ -4073,6 +4126,10 @@ static void dwc3_msm_otg_sm_work(struct work_struct *w)
 				dwc3_otg_start_peripheral(mdwc, 1);
 				mdwc->otg_state = OTG_STATE_B_PERIPHERAL;
 				work = 1;
+				/* wall charger in which D+/D- is disconnected
+				would be recognized as an usb cable, 4.2/5 */
+				schedule_delayed_work(&mdwc->invalid_chg_work, 5*HZ);
+				/* end */
 				break;
 			/* fall through */
 			default:
@@ -4080,6 +4137,12 @@ static void dwc3_msm_otg_sm_work(struct work_struct *w)
 			}
 		} else {
 			mdwc->typec_current_max = 0;
+			/* wall charger in which D+/D- is disconnected
+				would be recognized as an usb cable, 5/5 */
+			dev_dbg(mdwc->dev,  "cancel invalid_chg_work\n");
+			cancel_delayed_work_sync(&mdwc->invalid_chg_work);
+			skip_invalid_chg_work = 0;
+			/* end */
 			dwc3_msm_gadget_vbus_draw(mdwc, 0);
 			dev_dbg(mdwc->dev, "No device, allowing suspend\n");
 			dbg_event(0xFF, "RelNodev", 0);

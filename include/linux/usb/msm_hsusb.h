@@ -122,7 +122,7 @@ enum msm_usb_phy_type {
 
 #define IDEV_CHG_MAX	1500
 #define IUNIT		100
-#define IDEV_HVDCP_CHG_MAX	1800
+#define IDEV_HVDCP_CHG_MAX	1500
 
 /**
  * Different states involved in USB charger detection.
@@ -455,6 +455,9 @@ struct msm_otg {
 	struct workqueue_struct *otg_wq;
 	struct delayed_work chg_work;
 	struct delayed_work id_status_work;
+	/* wall charger in which D+/D- disconnected would be recognized as usb cable. */
+	struct delayed_work invalid_chg_work;
+	/* end. */
 	enum usb_chg_state chg_state;
 	enum usb_chg_type chg_type;
 	u8 dcd_retries;
