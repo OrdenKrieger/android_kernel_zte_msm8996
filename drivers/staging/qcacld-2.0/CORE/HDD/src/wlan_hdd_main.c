@@ -16135,7 +16135,7 @@ int zte_wifi_read_mac_addr(const char *filename, unsigned char *addr)
     int i;
 
     memset(buf, 0, sizeof(buf));
-    fp = filp_open(WIFI_MAC_ADDR_FILE, O_RDONLY, 0);
+    fp = filp_open(filename, O_RDONLY, 0);
     if (IS_ERR(fp)) {
         printk(KERN_ERR "Failed to read mac addr from %s\n", filename);
         return PTR_ERR(fp);
