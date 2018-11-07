@@ -36,6 +36,7 @@ struct led_classdev {
 	enum led_brightness	 max_brightness;
 	enum led_brightness	 usr_brightness_req;
 	int			 flags;
+	int  blink_value;/*zte_led*/
 
 	/* Lower 16 bits reflect status */
 #define LED_SUSPENDED		(1 << 0)
