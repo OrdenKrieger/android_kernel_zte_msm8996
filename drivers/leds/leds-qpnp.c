@@ -250,6 +250,8 @@
 #define NUM_KPDBL_LEDS			4
 #define KPDBL_MASTER_BIT_INDEX		0
 
+#define LED_BLINK_SHOW_LENGTH 10
+
 /**
  * enum qpnp_leds - QPNP supported led ids
  * @QPNP_ID_WLED - White led backlight
@@ -2656,6 +2658,15 @@ static void led_blink(struct qpnp_led_data *led,
 	mutex_unlock(&led->lock);
 }
 
+static ssize_t blink_show(struct device *dev, struct device_attribute *attr, char *buf) /*zte_led*/
+{
+	struct qpnp_led_data *led;
+	struct led_classdev *led_cdev = dev_get_drvdata(dev);
+
+	led = container_of(led_cdev, struct qpnp_led_data, cdev);
+	return snprintf(buf, LED_BLINK_SHOW_LENGTH, "blink=%d\n", led->cdev.blink_value);
+}
+
 static ssize_t blink_store(struct device *dev,
 	struct device_attribute *attr,
 	const char *buf, size_t count)
@@ -2670,6 +2681,14 @@ static ssize_t blink_store(struct device *dev,
 		return ret;
 	led = container_of(led_cdev, struct qpnp_led_data, cdev);
 	led->cdev.brightness = blinking ? led->cdev.max_brightness : 0;
+
+	if (led->rgb_cfg->pwm_cfg->use_blink) {
+		led->cdev.blink_value = blinking;
+		/*zte_led
+		//if 2 blink-period, transmit blinking from HAL to lut_params
+		//led->rgb_cfg->pwm_cfg->lut_params.blink_value = blinking;
+		*/
+	}
 
 	switch (led->id) {
 	case QPNP_ID_LED_MPP:
@@ -2699,7 +2718,7 @@ static DEVICE_ATTR(start_idx, 0664, NULL, start_idx_store);
 static DEVICE_ATTR(ramp_step_ms, 0664, NULL, ramp_step_ms_store);
 static DEVICE_ATTR(lut_flags, 0664, NULL, lut_flags_store);
 static DEVICE_ATTR(duty_pcts, 0664, NULL, duty_pcts_store);
-static DEVICE_ATTR(blink, 0664, NULL, blink_store);
+static DEVICE_ATTR(blink, 0664, blink_show, blink_store);/*zte_led*/
 
 static struct attribute *led_attrs[] = {
 	&dev_attr_led_mode.attr,
@@ -4115,8 +4134,11 @@ static int qpnp_leds_probe(struct spmi_device *spmi)
 			__qpnp_led_work(led, led->cdev.brightness);
 			if (led->turn_off_delay_ms > 0)
 				qpnp_led_turn_off(led);
-		} else
+		} else {
 			led->cdev.brightness = LED_OFF;
+			/*zte_led*//*off when power on in kernel , on in bootloader*/
+			__qpnp_led_work(led, led->cdev.brightness);
+		}
 
 		parsed_leds++;
 	}
