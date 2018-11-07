@@ -1161,12 +1161,8 @@ static void mmc_sd_detect(struct mmc_host *host)
 	 * just return; This is to ensure that when this call is invoked
 	 * due to pm_suspend, not to block suspend for longer duration.
 	 */
-	pm_runtime_get_sync(&host->card->dev);
-	if (!mmc_try_claim_host(host, 2000)) {
-		pm_runtime_mark_last_busy(&host->card->dev);
-		pm_runtime_put_autosuspend(&host->card->dev);
+	if (mmc_try_get_card(host->card, 3000))
 		return;
-	}
 
 	mmc_power_up(host, host->ocr_avail);
 
@@ -1477,6 +1473,7 @@ int mmc_attach_sd(struct mmc_host *host)
 	if (!retries) {
 		printk(KERN_ERR "%s: mmc_sd_init_card() failure (err = %d)\n",
 		       mmc_hostname(host), err);
+		host->is_bad_card = true;
 		goto err;
 	}
 #else
