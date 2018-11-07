@@ -318,6 +318,7 @@ enum msm_sensor_cfg_type_t {
 	CFG_SLAVE_WRITE_I2C_ARRAY,
 	CFG_WRITE_I2C_SEQ_ARRAY,
 	CFG_POWER_UP,
+	CFG_POWER_RESET,
 	CFG_POWER_DOWN,
 	CFG_SET_STOP_STREAM_SETTING,
 	CFG_GET_SENSOR_INFO,
@@ -353,6 +354,9 @@ enum msm_actuator_cfg_type_t {
 	CFG_ACTUATOR_POWERDOWN,
 	CFG_ACTUATOR_POWERUP,
 	CFG_ACTUATOR_INIT,
+	CFG_ACTUATOR_CCI_INFO,
+	CFG_ACTUATOR_REGISTER_READ,
+	CFG_ACTUATOR_REGISTER_WRITER,
 };
 
 struct msm_ois_opcode {
@@ -364,9 +368,11 @@ struct msm_ois_opcode {
 
 enum msm_ois_cfg_type_t {
 	CFG_OIS_INIT,
+	CFG_OIS_DEINIT,
 	CFG_OIS_POWERDOWN,
 	CFG_OIS_POWERUP,
 	CFG_OIS_CONTROL,
+	CFG_OIS_READ,
 	CFG_OIS_I2C_WRITE_SEQ_TABLE,
 };
 
@@ -378,6 +384,7 @@ enum msm_ois_cfg_download_type_t {
 enum msm_ois_i2c_operation {
 	MSM_OIS_WRITE = 0,
 	MSM_OIS_POLL,
+	MSM_OIS_READ,
 };
 
 struct reg_settings_ois_t {
@@ -439,6 +446,13 @@ struct msm_actuator_params_t {
 	struct msm_actuator_reg_params_t *reg_tbl_params;
 	struct reg_settings_t *init_settings;
 	struct park_lens_data_t park_lens;
+};
+
+struct msm_actuator_cci_params_t {
+	uint32_t i2c_addr;
+	enum i2c_freq_mode_t i2c_freq_mode;
+	enum msm_camera_i2c_reg_addr_type i2c_addr_type;
+	enum msm_camera_i2c_data_type i2c_data_type;
 };
 
 struct msm_actuator_set_info_t {
@@ -507,6 +521,8 @@ struct msm_actuator_cfg_data {
 		struct msm_actuator_get_info_t get_info;
 		struct msm_actuator_set_position_t setpos;
 		enum af_camera_name cam_name;
+		struct msm_actuator_cci_params_t cci_info;
+		struct reg_settings_t reg_info;
 	} cfg;
 };
 
@@ -603,6 +619,9 @@ struct sensor_init_cfg_data {
 
 #define VIDIOC_MSM_IR_CUT_CFG \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 15, struct msm_ir_cut_cfg_data_t)
+
+#define VIDIOC_MSM_FLASH_HW_ID \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 16, uint32_t)
 
 #endif
 

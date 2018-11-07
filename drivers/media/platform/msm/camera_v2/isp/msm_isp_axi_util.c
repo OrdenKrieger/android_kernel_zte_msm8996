@@ -1800,13 +1800,14 @@ static struct msm_isp_buffer *msm_isp_get_stream_buffer(
 	if (rc < 0)
 		return buf;
 
+#if 0
 	if (buf->num_planes != stream_info->num_planes) {
 		pr_err("%s: Invalid buffer\n", __func__);
 		vfe_dev->buf_mgr->ops->put_buf(vfe_dev->buf_mgr,
 				bufq_handle, buf->buf_idx);
 		buf = NULL;
 	}
-
+#endif
 	return buf;
 }
 
