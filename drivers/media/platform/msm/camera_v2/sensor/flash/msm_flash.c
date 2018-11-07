@@ -27,6 +27,30 @@ DEFINE_MSM_MUTEX(msm_flash_mutex);
 static struct v4l2_file_operations msm_flash_v4l2_subdev_fops;
 static struct led_trigger *torch_trigger;
 
+typedef  int (*check_hw_version_t) (void);
+#define HW_BOARD_A_ID 1
+#define HW_BOARD_B_ID 2
+
+static int check_hw_version_AB(void)
+{
+	int board_id  = check_hw_id();
+
+	if ((board_id == HW_BOARD_A_ID) || (board_id == HW_BOARD_B_ID))
+		return 1;
+	else
+		return 0;
+}
+
+static int check_hw_version_C(void)
+{
+	int board_id  = check_hw_id();
+
+	if ((board_id == HW_BOARD_A_ID) || (board_id == HW_BOARD_B_ID))
+		return 0;
+	else
+		return 1;
+}
+
 static const struct of_device_id msm_flash_i2c_dt_match[] = {
 	{.compatible = "qcom,camera-flash"},
 	{}
@@ -39,6 +63,10 @@ static const struct i2c_device_id msm_flash_i2c_id[] = {
 
 static const struct of_device_id msm_flash_dt_match[] = {
 	{.compatible = "qcom,camera-flash", .data = NULL},
+	{.compatible = "qcom,camera-flash-single",
+					.data = (void *)check_hw_version_AB},
+	{.compatible = "qcom,camera-flash-dual",
+					.data =   (void *)check_hw_version_C},
 	{}
 };
 
@@ -599,12 +627,22 @@ static int32_t msm_flash_low(
 		if (flash_ctrl->flash_trigger[i])
 			led_trigger_event(flash_ctrl->flash_trigger[i], 0);
 
+	if (flash_ctrl->switch_trigger)
+		led_trigger_event(flash_ctrl->switch_trigger, 0);
+
 	/* Turn on flash triggers */
 	for (i = 0; i < flash_ctrl->torch_num_sources; i++) {
 		if (flash_ctrl->torch_trigger[i]) {
 			max_current = flash_ctrl->torch_max_current[i];
 			if (flash_data->flash_current[i] >= 0 &&
+/*
+  * by ZTE_YCM_20151001 yi.changming 400021
+  */
+/*
 				flash_data->flash_current[i] <
+*/
+				flash_data->flash_current[i] <=
+/*---400021---*/
 				max_current) {
 				curr = flash_data->flash_current[i];
 			} else {
@@ -641,7 +679,14 @@ static int32_t msm_flash_high(
 		if (flash_ctrl->flash_trigger[i]) {
 			max_current = flash_ctrl->flash_max_current[i];
 			if (flash_data->flash_current[i] >= 0 &&
+/*
+  * by ZTE_YCM_20151001 yi.changming 400021
+  */
+/*
 				flash_data->flash_current[i] <
+*/
+				flash_data->flash_current[i] <=
+/*---400021---*/
 				max_current) {
 				curr = flash_data->flash_current[i];
 			} else {
@@ -712,6 +757,7 @@ static int32_t msm_flash_config(struct msm_flash_ctrl_t *flash_ctrl,
 		break;
 	case CFG_FLASH_LOW:
 		if ((flash_ctrl->flash_state == MSM_CAMERA_FLASH_OFF) ||
+			(flash_ctrl->flash_state == MSM_CAMERA_FLASH_LOW) ||
 			(flash_ctrl->flash_state == MSM_CAMERA_FLASH_INIT)) {
 			rc = flash_ctrl->func_tbl->camera_flash_low(
 				flash_ctrl, flash_data);
@@ -766,6 +812,9 @@ static long msm_flash_subdev_ioctl(struct v4l2_subdev *sd,
 	switch (cmd) {
 	case VIDIOC_MSM_SENSOR_GET_SUBDEV_ID:
 		return msm_flash_get_subdev_id(fctrl, argp);
+	case VIDIOC_MSM_FLASH_HW_ID:
+		*(uint32_t *)arg = fctrl->hw_id;
+		return 0;
 	case VIDIOC_MSM_FLASH_CFG:
 		return msm_flash_config(fctrl, argp);
 	case MSM_SD_NOTIFY_FREEZE:
@@ -1205,12 +1254,21 @@ static int32_t msm_flash_platform_probe(struct platform_device *pdev)
 	int32_t rc = 0;
 	struct msm_flash_ctrl_t *flash_ctrl = NULL;
 	struct msm_camera_cci_client *cci_client = NULL;
+	const struct of_device_id *match;
+	check_hw_version_t check_hw_version;
 
 	CDBG("Enter");
 	if (!pdev->dev.of_node) {
 		pr_err("of_node NULL\n");
 		return -EINVAL;
 	}
+
+	match = of_match_device(msm_flash_dt_match, &pdev->dev);
+	check_hw_version = (check_hw_version_t)match->data;
+	pr_info("%s:%d  hw_id(%d)\n", __func__, __LINE__, check_hw_id());
+	if (check_hw_version && !check_hw_version())
+		return  -EINVAL;
+
 
 	flash_ctrl = kzalloc(sizeof(struct msm_flash_ctrl_t), GFP_KERNEL);
 	if (!flash_ctrl) {
@@ -1221,6 +1279,10 @@ static int32_t msm_flash_platform_probe(struct platform_device *pdev)
 	memset(flash_ctrl, 0, sizeof(struct msm_flash_ctrl_t));
 
 	flash_ctrl->pdev = pdev;
+
+	flash_ctrl->hw_id = 0;
+	if (check_hw_version)
+		flash_ctrl->hw_id =  check_hw_version_AB();/*for A7S old hw*/
 
 	rc = msm_flash_get_dt_data(pdev->dev.of_node, flash_ctrl);
 	if (rc < 0) {
@@ -1250,6 +1312,8 @@ static int32_t msm_flash_platform_probe(struct platform_device *pdev)
 	/* Initialize sub device */
 	v4l2_subdev_init(&flash_ctrl->msm_sd.sd, &msm_flash_subdev_ops);
 	v4l2_set_subdevdata(&flash_ctrl->msm_sd.sd, flash_ctrl);
+
+	platform_set_drvdata(pdev, &flash_ctrl->msm_sd.sd);
 
 	flash_ctrl->msm_sd.sd.internal_ops = &msm_flash_internal_ops;
 	flash_ctrl->msm_sd.sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;

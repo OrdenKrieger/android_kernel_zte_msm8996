@@ -719,7 +719,11 @@ static int msm_isp_update_put_buf_cnt_unsafe(
 		rc = 0;
 	} else if (bufq->buf_type == ISP_SHARE_BUF &&
 		(*put_buf_mask & (1 << id)) != 0) {
+#if 0
 		return -ENOTEMPTY;
+#else
+		pr_err("%s: share buf had be used fail 0x%x\n", __func__, *put_buf_mask);
+#endif
 	}
 
 	if (buf_info &&

@@ -174,6 +174,8 @@ uint32_t msm_isp_get_framedrop_period(
 	case EVERY_7FRAME:
 	case EVERY_8FRAME:
 		return frame_skip_pattern + 1;
+	case EVERY_10FRAME:
+		return 10;
 	case EVERY_16FRAME:
 		return 16;
 		break;
