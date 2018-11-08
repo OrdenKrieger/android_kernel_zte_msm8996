@@ -1470,6 +1470,21 @@ static bool msm_pcm_routing_route_is_set(u16 be_id, u16 fe_id)
 	return rc;
 }
 
+/* ZTE_chenjun */
+bool msm_is_in_voice_call(void)
+{
+	bool rc = false;
+
+	if ((test_bit(MSM_FRONTEND_DAI_VOICEMMODE1,
+			&msm_bedais[MSM_BACKEND_DAI_SLIMBUS_0_RX].fe_sessions))
+		|| (test_bit(MSM_FRONTEND_DAI_VOICEMMODE2,
+		&msm_bedais[MSM_BACKEND_DAI_SLIMBUS_0_RX].fe_sessions))) {
+		rc = true;
+	}
+
+	return rc;
+}
+
 static void msm_pcm_routing_process_audio(u16 reg, u16 val, int set)
 {
 	int session_type, path_type, topology;
@@ -5602,6 +5617,9 @@ static const struct snd_kcontrol_new mmul1_mixer_controls[] = {
 	SOC_SINGLE_EXT("SLIM_0_TX", MSM_BACKEND_DAI_SLIMBUS_0_TX,
 		MSM_FRONTEND_DAI_MULTIMEDIA1, 1, 0, msm_routing_get_audio_mixer,
 		msm_routing_put_audio_mixer),
+	SOC_SINGLE_EXT("SLIM_1_TX", MSM_BACKEND_DAI_SLIMBUS_1_TX,
+		MSM_FRONTEND_DAI_MULTIMEDIA1, 1, 0, msm_routing_get_audio_mixer,
+		msm_routing_put_audio_mixer), /* ZTE_chenjun */
 	SOC_SINGLE_EXT("SLIM_2_TX", MSM_BACKEND_DAI_SLIMBUS_2_TX,
 		MSM_FRONTEND_DAI_MULTIMEDIA1, 1, 0, msm_routing_get_audio_mixer,
 		msm_routing_put_audio_mixer),
