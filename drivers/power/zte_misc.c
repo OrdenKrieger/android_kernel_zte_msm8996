@@ -197,6 +197,26 @@ static int set_enable_to_shutdown(const char *val, struct kernel_param *kp)
 module_param_call(enable_to_shutdown, set_enable_to_shutdown, param_get_uint,
                     &enable_to_shutdown, 0644);
 
+bool demo_charging_policy = 0;
+extern int schedule_zte_charge_policy_work(int msecs);
+
+static int set_longtime_chg_protect(const char *val, struct kernel_param *kp)
+{
+	int ret;
+
+	ret = param_set_int(val, kp);
+	if (ret) {
+		pr_err("Fail to setting value %d\n", ret);
+		return ret;
+	}
+
+	if (demo_charging_policy)
+		schedule_zte_charge_policy_work(0);
+	pr_info("demo_charging_policy: %d\n", demo_charging_policy);
+	return 0;
+}
+module_param_call(demo_charging_policy, set_longtime_chg_protect, param_get_int, &demo_charging_policy, 0644);
+
 static int zte_misc_charging_enabled;//defined in ****-charger.c
 static int zte_misc_control_charging(const char *val, struct kernel_param *kp)
 {
@@ -518,19 +538,38 @@ static int zte_misc_get_design_capacity(char *val, struct kernel_param *kp)
 module_param_call(design_capacity, NULL, zte_misc_get_design_capacity,
 			&design_capacity, 0644);
 
-int charge_type_oem = -1;
+extern int charge_type_oem;
 module_param_named(
 	charge_type_oem, charge_type_oem, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH
 );
 
+
+static int id_num = -1;
+
+#ifdef CONFIG_BOARD_FUJISAN
+static char *hw_id = NULL;
+
+/* zte:  uarA/uarB/udeA: for engineer developing, not for release
+*          udnA: for Japan DCM
+*          udrA: for UERO
+*          ufnA: for China
+*/
+static char *hw_id_text[] = {
+		"undefined", "uarA", "uarB", "udeA", "udnA", "udrA", "ufnA"
+};
+#else
 static int hw_id = -1;
+#endif
 
 int check_hw_id(void)
 {
 	struct device_node *np;
 	uint32_t *buf = NULL;
-
+#ifdef CONFIG_BOARD_FUJISAN
+	if (hw_id == NULL) {
+#else
 	if (hw_id == -1) {
+#endif
 		np = of_find_compatible_node(NULL, NULL, "zte,imem-hw-ver-id");
 		if (!np) {
 			pr_err("unable to find DT imem zte,imem-hw-ver-id\n");
@@ -540,15 +579,27 @@ int check_hw_id(void)
 			if (!buf)
 				pr_err("unable to map imem [hw-ver-id]\n");
 			else
-				hw_id = *buf;
+				id_num = *buf;
 		}
-		pr_info("hw_id=%d\n", hw_id);
+		pr_info("hw_id =%d\n", id_num);
+#ifdef CONFIG_BOARD_FUJISAN
+		if (id_num > 0 && id_num < ARRAY_SIZE(hw_id_text))
+			hw_id = hw_id_text[id_num];
+		else
+			hw_id = hw_id_text[0];
+#else
+		hw_id = id_num;
+#endif
 	}
 
-	return hw_id;
+	return id_num;
 }
 
+#ifdef CONFIG_BOARD_FUJISAN
+module_param(hw_id, charp, 0444);
+#else
 module_param(hw_id, int, 0444);
+#endif
 
 static int zte_misc_probe(struct platform_device *pdev)
 {
