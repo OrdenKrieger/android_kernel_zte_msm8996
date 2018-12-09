@@ -67,5 +67,6 @@
 
 };
 &pmi8994_charger {
-	qcom,fastchg-current-comp = <250>;
+	qcom,fastchg-current-comp = <900>;
+	qcom,thermal-mitigation = <2500 1500 500 0>;
 };
