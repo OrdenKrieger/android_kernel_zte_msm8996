@@ -1355,10 +1355,15 @@ static int fg_check_ima_exception(struct fg_chip *chip, bool check_hw_sts)
 
 	if (run_err_clr_seq) {
 		ret = fg_run_iacs_clear_sequence(chip);
-		if (!ret)
-			return -EAGAIN;
-		else
+		if (ret) {
 			pr_err("Error clearing IMA exception ret=%d\n", ret);
+			return ret;
+		}
+
+		if (check_hw_sts)
+			return 0;
+		else
+			return -EAGAIN;
 	}
 
 	return rc;
@@ -2258,6 +2263,7 @@ static int get_prop_capacity(struct fg_chip *chip)
 	bool vbatt_low_sts;
 	u8 buffer[3];
 	int capacity = 0;
+	static int last_msoc = -1;
 
 	fg_mem_lock(chip);
 	rc = fg_mem_read(chip, buffer, 0x56C, 3, 1, 0);
@@ -2274,8 +2280,10 @@ static int get_prop_capacity(struct fg_chip *chip)
 				FULL_SOC_RAW - 2) + 1;
 	}
 
-	if (chip->battery_missing)
+	if (chip->battery_missing) {
+		pr_info("battery_missing capacity = %d\n", MISSING_CAPACITY);
 		return MISSING_CAPACITY;
+	}
 
 	if (!chip->profile_loaded && !chip->use_otp_profile)
 		return DEFAULT_CAPACITY;
@@ -2319,10 +2327,16 @@ static int get_prop_capacity(struct fg_chip *chip)
 		return FULL_CAPACITY;
 	}
 
-	capacity = DIV_ROUND_CLOSEST((msoc - 1) * (FULL_CAPACITY - 2),
+	capacity = DIV_ROUND_CLOSEST((msoc - 1) * (FULL_CAPACITY + 1),
 			FULL_SOC_RAW - 2) + 1;
 	if (capacity >= FULL_CAPACITY)
 		capacity = FULL_CAPACITY;
+
+	if (msoc != last_msoc) {
+		last_msoc = msoc;
+		pr_info("capacity: %d, raw: %d\n", capacity, msoc);
+	}
+
 	return capacity;
 }
 
@@ -2553,6 +2567,7 @@ static u16 float_encode(int64_t uval)
 static int fg_is_batt_id_valid(struct fg_chip *chip)
 {
 	u8 fg_batt_sts;
+	static u8 pre_sts = 0;
 	int rc;
 
 	rc = fg_read(chip, &fg_batt_sts,
@@ -2563,7 +2578,12 @@ static int fg_is_batt_id_valid(struct fg_chip *chip)
 		return rc;
 	}
 
-	pr_debug("fg batt sts 0x%x\n", fg_batt_sts);
+	if (fg_debug_mask & FG_IRQS) {
+		if (pre_sts != fg_batt_sts) {
+			pre_sts = fg_batt_sts;
+			pr_info("fg batt sts 0x%x\n", fg_batt_sts);
+		}
+	}
 
 	return (fg_batt_sts & BATT_IDED) ? 1 : 0;
 }
@@ -2598,6 +2618,7 @@ static int update_sram_data(struct fg_chip *chip, int *resched_ms)
 	int i, j, rc = 0;
 	u8 reg[4];
 	int64_t temp;
+	static int64_t pre_cc_data = 0;
 	int battid_valid = fg_is_batt_id_valid(chip);
 
 	fg_stay_awake(&chip->update_sram_wakeup_source);
@@ -2673,7 +2694,7 @@ static int update_sram_data(struct fg_chip *chip, int *resched_ms)
 	if (fg_reset_on_lockup && !chip->ima_error_handling) {
 		if (!rc) {
 			if (fg_debug_mask & FG_STATUS)
-				pr_info("backing up SRAM registers\n");
+				pr_debug("backing up SRAM registers\n");
 			rc = fg_backup_sram_registers(chip, true);
 			if (rc) {
 				pr_err("Couldn't save sram registers\n");
@@ -2685,9 +2706,13 @@ static int update_sram_data(struct fg_chip *chip, int *resched_ms)
 					(int64_t)chip->last_soc *
 					FULL_PERCENT_28BIT, FULL_SOC_RAW);
 			}
-			if (fg_debug_mask & FG_STATUS)
-				pr_info("last_soc: %d last_cc_soc: %lld\n",
-					chip->last_soc, chip->last_cc_soc);
+			if (fg_debug_mask & FG_STATUS) {
+				if (pre_cc_data != chip->last_cc_soc) {
+					pre_cc_data = chip->last_cc_soc;
+					pr_info("last_soc: %d last_cc_soc: %lld\n",
+						chip->last_soc, chip->last_cc_soc);
+				}
+			}
 		} else {
 			pr_err("update_sram failed\n");
 			goto out;
@@ -2730,7 +2755,7 @@ try_again:
 	}
 
 	if (fg_debug_mask & FG_STATUS)
-		pr_info("current: %d, prev: %d\n", beat_count,
+		pr_debug("current: %d, prev: %d\n", beat_count,
 			chip->last_beat_count);
 
 	if (chip->last_beat_count == beat_count) {
@@ -3599,6 +3624,7 @@ static bool is_battery_missing(struct fg_chip *chip)
 		return false;
 	}
 
+	pr_info("fg_batt_sts = %d\n", fg_batt_sts);
 	return (fg_batt_sts & BATT_MISSING_STS) ? true : false;
 }
 
@@ -5076,7 +5102,7 @@ static void cc_soc_store_work(struct work_struct *work)
 {
 	struct fg_chip *chip = container_of(work, struct fg_chip,
 					cc_soc_store_work);
-	int cc_soc_pct;
+	int cc_soc_pct, cc_soc;
 
 	if (!chip->nom_cap_uah) {
 		pr_err("nom_cap_uah zero!\n");
@@ -5084,15 +5110,15 @@ static void cc_soc_store_work(struct work_struct *work)
 		return;
 	}
 
-	cc_soc_pct = get_sram_prop_now(chip, FG_DATA_CC_CHARGE);
-	cc_soc_pct = div64_s64(cc_soc_pct * 100,
+	cc_soc = get_sram_prop_now(chip, FG_DATA_CC_CHARGE);
+	cc_soc_pct = div64_s64(cc_soc * 100,
 				chip->nom_cap_uah);
 	chip->last_cc_soc = div64_s64((int64_t)chip->last_soc *
 				FULL_PERCENT_28BIT, FULL_SOC_RAW);
 
 	if (fg_debug_mask & FG_STATUS)
-		pr_info("cc_soc_pct: %d last_cc_soc: %lld\n", cc_soc_pct,
-			chip->last_cc_soc);
+		pr_info("cc_soc_pct: %d cc_soc: %d last_cc_soc: %lld\n", cc_soc_pct,
+			cc_soc, chip->last_cc_soc);
 
 	if (fg_reset_on_lockup && (chip->cc_soc_limit_pct > 0 &&
 			cc_soc_pct >= chip->cc_soc_limit_pct)) {
@@ -6430,7 +6456,7 @@ wait:
 			goto no_profile;
 		}
 	}
-	pr_debug("fg_batt_type is %s\n", fg_batt_type);
+	pr_info("fg_batt_type is %s\n", fg_batt_type);
 
 	/* read rslow compensation values if they're available */
 	rc = of_property_read_u32(profile_node, "qcom,chg-rs-to-rslow",
@@ -6526,6 +6552,11 @@ wait:
 
 	vbat_in_range = get_vbat_est_diff(chip)
 			< settings[FG_MEM_VBAT_EST_DIFF].value * 1000;
+
+	pr_info("fg_data_voltage:%d fg_data_cpred voltage:%d vbat_est_diff:%d vbat_in_range=%d\n",
+		fg_data[FG_DATA_VOLTAGE].value, fg_data[FG_DATA_CPRED_VOLTAGE].value,
+		settings[FG_MEM_VBAT_EST_DIFF].value, vbat_in_range);
+
 	profiles_same = memcmp(chip->batt_profile, data,
 					PROFILE_COMPARE_LEN) == 0;
 	if (reg & PROFILE_INTEGRITY_BIT) {
@@ -6639,6 +6670,7 @@ done:
 	chip->first_profile_loaded = true;
 	chip->profile_loaded = true;
 	profile_loaded_zte = true;
+	pr_info("proflie_loaded is ok\n");
 	chip->soc_reporting_ready = true;
 	chip->battery_missing = is_battery_missing(chip);
 	update_chg_iterm(chip);
@@ -6733,6 +6765,7 @@ static void batt_profile_init(struct work_struct *work)
 				struct fg_chip,
 				batt_profile_init.work);
 
+	pr_info("Enter batt_profile_init.\n");
 	if (fg_batt_profile_init(chip))
 		pr_err("failed to initialize profile\n");
 }
