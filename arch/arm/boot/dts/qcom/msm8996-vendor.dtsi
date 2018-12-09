@@ -43,7 +43,10 @@
 			compatible = "qcom,msm-vendor-imem-sd_dump_mode";
 			reg = <0x2c 4>;
 		};
-
+		hw_ver_id@60 {
+			compatible = "zte,imem-hw-ver-id";
+			reg = <0x60 4>;
+		};
 		vlog_memory_cookie@64 {
 			compatible = "qcom,msm-vendor-imem-vlog_memory_cookie";
 			reg = <0x64 4>;
@@ -58,10 +61,6 @@
 			compatible = "qcom,msm-imem-vlog_memory_size";
 			reg = <0x6c 4>;
 		};
-	};
-
-	vendor,f3mem{
-		compatible = "vendor,f3mem";
 	};
 
 	zte_pm_debug {
