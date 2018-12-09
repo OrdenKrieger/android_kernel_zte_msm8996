@@ -252,20 +252,13 @@ static void pwrkey_timer(unsigned long data)
 	schedule_work(&pon->pwrkey_poweroff_work);
 }
 
-extern int zte_volume_key;
+extern bool vr_mode_judge;
 static void pwrkey_poweroff(struct work_struct *work)
 {
-#if 0
-	if(socinfo_get_ftm_flag()) {
-		pr_info("%s: power key long pressed, reboot because of FTM mode\n",__func__);
-		kernel_restart(NULL);
-	} else {
-		pr_info("%s: power key long pressed, just print this info\n",__func__);
-	}
-#else
-	pr_emerg("%s: power key long pressed, trigger reboot\n",__func__);
-	kernel_restart("ZTE-LONGPRESS");
-#endif
+    if (!vr_mode_judge) {
+        pr_err("%s, vr_judge_mode=%d\n",__func__,vr_mode_judge);
+        kernel_restart("ZTE-LONGPRESS");
+    }
 }
 
 static void pwrkey_release(struct work_struct *work)
@@ -1012,8 +1005,13 @@ static irqreturn_t qpnp_kpdpwr_irq(int irq, void *_pon)
 		if(socinfo_get_ftm_flag()==1){
 			pon->timer.expires = jiffies + 3 * HZ;
 			pr_info("%s: FTM mode,start 3s timer for reboot\n",__func__);
+
+		mod_timer(&pon->timer, pon->timer.expires);
+		schedule_delayed_work(&pon->check_pwrkey_work,
+			round_jiffies_relative(msecs_to_jiffies
+				(POWER_KEY_CHECK_MS)));
 		}
-		else {
+/*		else {
 			pon->timer.expires = jiffies + 10 * HZ;
 			pr_info("%s: Normal mode,start 8s timer for reboot\n",__func__);
 		}
@@ -1021,6 +1019,7 @@ static irqreturn_t qpnp_kpdpwr_irq(int irq, void *_pon)
 		schedule_delayed_work(&pon->check_pwrkey_work,
 			round_jiffies_relative(msecs_to_jiffies
 				(POWER_KEY_CHECK_MS)));
+*/
 		printk("power key pressed\n");
 	}
 	else
