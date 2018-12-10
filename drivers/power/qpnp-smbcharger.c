@@ -9815,7 +9815,7 @@ static int smbchg_probe(struct spmi_device *spmi)
 	}
 	dev_info(&spmi->dev, "s3_src_reg: %d\n", s3_src_reg);
 
-	if (s3_src_reg != 2)
+	if (s3_src_reg != 0)
 		smb_set_shipmode();
 	chip->last_enable_to_shutdown_status = -1;
 	chip->probe_rerun_apsd = 0;
