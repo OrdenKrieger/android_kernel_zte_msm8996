@@ -29,11 +29,6 @@
 #include "mdss_dba_utils.h"
 #endif
 
-#include <linux/proc_fs.h>
-static struct proc_dir_entry * d_entry;
-static struct proc_dir_entry *d_entry_frame_count;
-static char  module_name[50]={"0"};
-extern u32 zte_frame_count;/*pan*/
 #define DT_CMD_HDR 6
 #define MIN_REFRESH_RATE 48
 #define DEFAULT_MDP_TRANSFER_TIME 14000
@@ -43,78 +38,6 @@ struct mutex zte_display_lock;
 int zte_display_init = 0;
 
 DEFINE_LED_TRIGGER(bl_led_trigger);
-
-ssize_t mdss_dsi_panel_lcd_read_proc(struct file *file, char __user *page, size_t size, loff_t *ppos)
-{
-	int len = 0;
-	printk("LCD %s:---enter---\n",__func__);
-
-	/* ADB call again */
-	if (*ppos)
-		return 0;
-
-	len = sprintf(page, "%s\n", module_name);
-	*ppos += len;
-
-	return len;
-}
-
-static const struct file_operations proc_ops = {
-	.owner = THIS_MODULE,
-	.read = mdss_dsi_panel_lcd_read_proc,
-	.write = NULL,
-};
-
-static ssize_t mdss_dsi_panel_lcd_read_frame_count(struct file *file, char __user *page, size_t size, loff_t *ppos)
-{
-	int len = 0;
-
-	/* ADB call again */
-	if (*ppos)
-		return 0;
-
-	len = snprintf(NULL, 0, "%d\n", zte_frame_count);
-	len = snprintf(page, len, "%d\n", zte_frame_count);
-	*ppos += len;
-
-	return len;
-}
-
-static const struct file_operations proc_ops_frame_count = {
-		.owner = THIS_MODULE,
-		.read = mdss_dsi_panel_lcd_read_frame_count,
-		.write = NULL,
-};
-
-void  mdss_dsi_panel_lcd_proc(struct device_node *node)
-{
-	const char *panel_name;
-	static int initial_flag =0;
-
-	if(initial_flag==1)
-		return ;
-	else
-		initial_flag = 1;
-
-	d_entry=proc_create("msm_lcd", 0664, NULL, &proc_ops);
-	if (d_entry == NULL)
-		printk("LCD proc_create panel information failed!\n");
-
-	d_entry_frame_count = proc_create("msm_frame_count", 0664, NULL, &proc_ops_frame_count);
-	if (!d_entry_frame_count)
-		pr_debug("LCD proc_create msm_frame_count failed!\n");
-
-	panel_name = of_get_property(node,
-		"qcom,mdss-dsi-panel-name", NULL);
-	if (!panel_name){
-		pr_info("LCD %s:%d, panel name not found!\n",
-						__func__, __LINE__);
-		strcpy(module_name,"0");
-	}else{
-		pr_info("LCD %s: Panel Name = %s\n", __func__, panel_name);
-		strcpy(module_name,panel_name);
-	}
-}
 
 void mdss_dsi_panel_pwm_cfg(struct mdss_dsi_ctrl_pdata *ctrl)
 {
@@ -328,7 +251,7 @@ static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 	else
 		bl_level = (15*level*level + 6059*level+29580)/10000;
 
-	pr_err("LCD %s: flag=%d level=%d -> new_level=%d\n", __func__, power_on_flag, level, bl_level);
+	pr_debug("LCD %s: flag=%d level=%d -> new_level=%d\n", __func__, power_on_flag, level, bl_level);
 
 	led_pwm1[1] = (unsigned char)bl_level;
 
@@ -1249,7 +1172,7 @@ void mdss_dsi_panel_3v_power(struct mdss_panel_data *pdata, int enable)
 	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
 
-	printk("LCD 3v_power GPIO(vsp):%d , Enable:%d\n",ctrl_pdata->lcd_3v_vsp_en_gpio, enable);
+	pr_debug("LCD 3v_power GPIO(vsp):%d , Enable:%d\n",ctrl_pdata->lcd_3v_vsp_en_gpio, enable);
 
 	if (enable) {
 		if (gpio_is_valid(ctrl_pdata->lcd_3v_vsp_en_gpio)){
@@ -1478,7 +1401,7 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 	mdss_dsi_panel_apply_display_setting(pdata, pinfo->persist_mode);
 
 end:
-	printk("LCD %s:-\n", __func__);
+	pr_debug("%s:-\n", __func__);
 	return ret;
 }
 
@@ -1581,7 +1504,7 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 end:
 	/* clear idle state */
 	ctrl->idle = false;
-	printk("%s:-\n", __func__);
+	pr_debug("%s:-\n", __func__);
 	return 0;
 }
 
@@ -3484,7 +3407,5 @@ int mdss_dsi_panel_init(struct device_node *node,
 		mutex_init(&zte_display_lock);
 		zte_display_init = 1;
 	}
-
-	mdss_dsi_panel_lcd_proc(node);
 	return 0;
 }

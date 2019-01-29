@@ -56,8 +56,6 @@
 #include "mdss_mdp.h"
 #include "mdp3_ctrl.h"
 
-u32 zte_frame_count;/*pan*/
-
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
 #define MDSS_FB_NUM 3
 #else
@@ -1237,7 +1235,7 @@ static int mdss_fb_probe(struct platform_device *pdev)
 		pr_err("can't allocate framebuffer info data!\n");
 		return -ENOMEM;
 	}
-	zte_frame_count = 0;/*pan*/
+
 	mfd = (struct msm_fb_data_type *)fbi->par;
 	mfd->vr_mode = 0;
 	mfd->vr_mode_exiting = 0;
@@ -3693,7 +3691,6 @@ static int __mdss_fb_perform_commit(struct msm_fb_data_type *mfd)
 		else
 			mfd->pending_switch = false;
 	}
-	++zte_frame_count ;/*pan*/
 	if (fb_backup->disp_commit.flags & MDP_DISPLAY_COMMIT_OVERLAY) {
 		if (mfd->mdp.kickoff_fnc)
 			ret = mfd->mdp.kickoff_fnc(mfd,
