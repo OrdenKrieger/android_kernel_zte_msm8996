@@ -1556,12 +1556,12 @@
 		pcie1 {
 			pcie1_clkreq_default: pcie1_clkreq_default {
 				mux {
-					pins = "gpio131";
+					/*pins = "gpio131";*/
 					function = "pci_e1";
 				};
 
 				config {
-					pins = "gpio131";
+					/*pins = "gpio131";*/
 					drive-strength = <2>;
 					bias-pull-up;
 				};
@@ -1595,12 +1595,12 @@
 
 			pcie1_clkreq_sleep: pcie1_clkreq_sleep {
 				mux {
-					pins = "gpio131";
+					/*pins = "gpio131";*/
 					function = "gpio";
 				};
 
 				config {
-					pins = "gpio131";
+					/*pins = "gpio131";*/
 					drive-strength = <2>;
 					bias-disable;
 				};
