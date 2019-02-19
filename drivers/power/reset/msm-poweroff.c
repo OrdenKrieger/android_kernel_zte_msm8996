@@ -427,12 +427,11 @@ static void deassert_ps_hold(void)
 	/* Fall-through to the direct write in case the scm_call "returns" */
 	__raw_writel(0, msm_ps_hold);
 }
-extern int qpnp_s2_reset_en(void);
+
 static void do_msm_restart(enum reboot_mode reboot_mode, const char *cmd)
 {
 	pr_notice("Going down for restart now\n");
 
-	qpnp_s2_reset_en();
 	msm_restart_prepare(cmd);
 
 #ifdef CONFIG_MSM_DLOAD_MODE
@@ -456,7 +455,6 @@ static void do_msm_poweroff(void)
 {
 	pr_notice("Powering off the SoC\n");
 
-	qpnp_s2_reset_en();
 	set_dload_mode(0);
 	scm_disable_sdi();
 	qpnp_pon_system_pwr_off(PON_POWER_OFF_SHUTDOWN);
