@@ -1276,8 +1276,8 @@ static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
 #endif
 
 /*ergate*/
-#ifdef CONFIG_FORCE_TOUCH_NDT
 	int z;
+#ifdef CONFIG_FORCE_TOUCH_NDT
 	int ret;
 	static unsigned int irq_count;
 #endif
