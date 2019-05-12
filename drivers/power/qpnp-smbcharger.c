@@ -9,7 +9,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-#define DEBUG
 #define pr_fmt(fmt) "SMBCHG: %s: " fmt, __func__
 
 #include <linux/spmi.h>
@@ -2292,7 +2291,7 @@ static int smbchg_get_aicl_level_ma(struct smbchg_chip *chip)
 		pr_warn("invalid AICL value: %02x\n", reg);
 		return 0;
 	}
-        pr_info("aicl current=%dmA,reg:%d\n", chip->tables.usb_ilim_ma_table[reg],reg);
+      	pr_debug("aicl current=%dmA,reg:%d\n", chip->tables.usb_ilim_ma_table[reg],reg);
 	return chip->tables.usb_ilim_ma_table[reg];
 }
 
@@ -4085,9 +4084,6 @@ static void smbchg_aicl_deglitch_wa_check(struct smbchg_chip *chip)
 	smbchg_aicl_deglitch_wa_en(chip, chip->vbat_above_headroom);
 }
 
-extern char *fg_batt_type_default;
-extern char *fg_batt_type;
-
 #define MISC_TEST_REG		0xE2
 #define BB_LOOP_DISABLE_ICL	BIT(2)
 static int smbchg_icl_loop_disable_check(struct smbchg_chip *chip)
@@ -4141,19 +4137,10 @@ static int smbchg_config_chg_battery_type(struct smbchg_chip *chip)
 	}
 
 	profile_node = of_batterydata_get_best_profile(batt_node,
-							"bms", fg_batt_type);
-	if (!profile_node) {
-		pr_err("couldn't find profile handle, battery_type1 is %s\n", fg_batt_type);
-		profile_node = of_batterydata_get_best_profile(batt_node, "bms",
-						fg_batt_type_default);
+							"bms", NULL);
 	if (!profile_node) {
 		pr_err("couldn't find profile handle\n");
 		return -EINVAL;
-		}else{
-			pr_debug("battery type is %s\n", fg_batt_type_default);
-		}
-	}else{
-		pr_debug("battery type is %s\n", fg_batt_type);
 	}
 	chip->battery_type = prop.strval;
 
@@ -5347,11 +5334,11 @@ static void batt_protect_chg_set_policy(struct work_struct *work)
 	else if (capacity >= capacity_threshold_high)
 		policy_chg_en = false;
 
-	pr_info("over time=%d, batt low=%d, demo batt high=%d, temp batt high=%d\n",
+	pr_debug("over time=%d, batt low=%d, demo batt high=%d, temp batt high=%d\n",
 			long_charge_time_min, batt_protect_low, batt_demo_high, batt_temp_high);
-	pr_info("warm set=%d, warm clear=%d, warm wait ms=%d\n",
+	pr_debug("warm set=%d, warm clear=%d, warm wait ms=%d\n",
 			batt_warm_set, batt_warm_clear, batt_warm_wait_and_see_ms);
-	pr_info("batt_protect_chg_policy 0x%x, cap %d, chg_en %d\n",
+	pr_debug("batt_protect_chg_policy 0x%x, cap %d, chg_en %d\n",
 			batt_protect_chg_policy, capacity, policy_chg_en);
 
 	if (batt_protect_chg_policy) {

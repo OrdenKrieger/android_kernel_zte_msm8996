@@ -1154,7 +1154,7 @@ source "drivers/input/touchscreen/hxchipset/Kconfig"
 config FORCE_TOUCH_NDT
        tristate "Force Touch by NDT"
        depends on I2C && INPUT && TOUCHSCREEN_SYNAPTICS_DSX_ZTE
-       default y
+       default n
        help
          This driver provides support for Force Touch by NDT.
 
